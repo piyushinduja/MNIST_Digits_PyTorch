@@ -8,35 +8,18 @@ Original file is located at
 """
 
 import torch
+import torchvision.datasets
+from torchvision import datasets, transforms
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+import torch.nn as nn
+from torch.utils.data import TensorDataset, DataLoader
 
-(x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
-type(x_train)
+transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
 
-# Converting data to PyTorch tensors
-x_train = torch.tensor(x_train, dtype=torch.float32, device=device)
-y_train = torch.tensor(y_train, dtype=torch.long, device=device)
-x_test = torch.tensor(x_test, dtype=torch.float32, device=device)
-y_test = torch.tensor(y_test, dtype=torch.long, device=device)
-
-# Simple Linear Regression example
-x = torch.tensor([1,2,3,4,5,6,7,8,9], dtype=torch.int64)
-y = torch.tensor([2,4,6,8,10,12,14,16,18], dtype=torch.int64)
-
-w = torch.tensor([0.0], requires_grad=True)
-
-for epoch in range(100):
-  y_pred = w * x
-  loss = (y-y_pred)**2
-  loss = loss.mean()
-  loss.backward()
-  with torch.no_grad():
-    w -= 0.01 * w.grad
-  w.grad.zero_()
-  if epoch%10==0:
-    print('Epoch:', epoch, ' Loss:', loss.item())
-
-print(f'{(w*(20.0)).item()}')
+train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
 """# **Standard PyTorch Pipline**
 1. Design a model with different layers
@@ -44,17 +27,6 @@ print(f'{(w*(20.0)).item()}')
 3. Training Loop:
 Forward pass - Prediction and Loss Calculation, Backward Pass - Calculate Gradients, Update Weights
 """
-
-# MNIST dataset model
-
-import torch.nn as nn
-from torch.utils.data import TensorDataset, DataLoader
-
-# Tensor Data to Dataset and DataLoader
-train_dataset = TensorDataset(x_train, y_train)
-test_dataset = TensorDataset(x_test, y_test)
-train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=True)
 
 class MultiClassClassifier(nn.Module):
   def __init__(self) -> None:
@@ -83,7 +55,7 @@ for epoch in range(EPOCHS):
   for x, y in train_dataloader:
     x = x.view(x.shape[0], -1).to(device)
     y_pred = model(x)
-    loss = loss_fn(y_pred, y)
+    loss = loss_fn(y_pred, y.to(device))
     loss.backward()
     optimizer.step()
     optimizer.zero_grad()
@@ -96,6 +68,25 @@ with torch.no_grad():
     x = x.view(-1, 784).to(device)
     y_pred = model(x)
     _, predicted = torch.max(y_pred.data, 1)
-    correct += (predicted == y).sum().item()
+    correct += (predicted == y.to(device)).sum().item()
   print('Accuracy:', correct/len(test_dataset))
+
+# Simple Linear Regression example
+x = torch.tensor([1,2,3,4,5,6,7,8,9], dtype=torch.int64)
+y = torch.tensor([2,4,6,8,10,12,14,16,18], dtype=torch.int64)
+
+w = torch.tensor([0.0], requires_grad=True)
+
+for epoch in range(100):
+  y_pred = w * x
+  loss = (y-y_pred)**2
+  loss = loss.mean()
+  loss.backward()
+  with torch.no_grad():
+    w -= 0.01 * w.grad
+  w.grad.zero_()
+  if epoch%10==0:
+    print('Epoch:', epoch, ' Loss:', loss.item())
+
+print(f'{(w*(20.0)).item()}')
 
