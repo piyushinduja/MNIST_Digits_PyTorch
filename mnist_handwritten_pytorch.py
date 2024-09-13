@@ -8,7 +8,6 @@ Original file is located at
 """
 
 import torch
-import tensorflow as tf
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
