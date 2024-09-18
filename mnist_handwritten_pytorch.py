@@ -13,6 +13,8 @@ from torchvision import datasets, transforms
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
+import time
+start_time = time.time()
 
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
 train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
@@ -45,7 +47,7 @@ class MultiClassClassifier(nn.Module):
     l4 = self.lin4(l3)
     return l4
 
-EPOCHS = 30
+EPOCHS = 5
 LEARNING_RATE = 0.001
 model = MultiClassClassifier().to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -59,8 +61,7 @@ for epoch in range(EPOCHS):
     loss.backward()
     optimizer.step()
     optimizer.zero_grad()
-  if epoch%10==0:
-      print('Epoch:', epoch, ' Loss:', loss.item())
+  print('Epoch:', epoch, ' Loss:', loss.item())
 
 with torch.no_grad():
   correct = 0
@@ -69,7 +70,7 @@ with torch.no_grad():
     y_pred = model(x)
     _, predicted = torch.max(y_pred.data, 1)
     correct += (predicted == y.to(device)).sum().item()
-  print('Accuracy:', correct/len(test_dataset))
+  print('Test Data Accuracy:', correct/len(test_dataset))
 
 # Simple Linear Regression example
 x = torch.tensor([1,2,3,4,5,6,7,8,9], dtype=torch.int64)
@@ -89,4 +90,8 @@ for epoch in range(100):
     print('Epoch:', epoch, ' Loss:', loss.item())
 
 print(f'{(w*(20.0)).item()}')
+
+end_time = time.time()
+elapsed_time = end_time - start_time
+print(f"Elapsed time: {elapsed_time} seconds")
 
