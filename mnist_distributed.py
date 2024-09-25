@@ -43,8 +43,8 @@ def ddp_setup(rank, world_size):
   print("Inside ddp setup")
   ip_address = get_ip_address()
   available_port = find_free_port()
-  os.environ['MASTER_ADDR'] = ip_address
-  os.environ['MASTER_PORT'] = str(available_port)
+  os.environ['MASTER_ADDR'] = 'localhost'
+  os.environ['MASTER_PORT'] = '8888'
   print("IP Addr:", os.environ['MASTER_ADDR'], " Port:", os.environ['MASTER_PORT'])
   init_process_group(backend='gloo', rank=rank, world_size=world_size)
 
