@@ -61,7 +61,7 @@ def prepare_data(world_size, rank, batch_size=32, pin_memory=False, num_workers=
 
   test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
   test_sampler = DistributedSampler(test_dataset, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False)
-  test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, sample=test_sampler)
+  test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, sampler=test_sampler)
   return train_dataloader, test_dataloader
 
 
