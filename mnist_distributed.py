@@ -43,7 +43,7 @@ def ddp_setup(rank, world_size):
   print("Inside ddp setup")
   ip_address = get_ip_address()
   available_port = find_free_port()
-  os.environ['MASTER_ADDR'] = 'localhost'
+  os.environ['MASTER_ADDR'] = ip_address
   os.environ['MASTER_PORT'] = '8888'
   print("IP Addr:", os.environ['MASTER_ADDR'], " Port:", os.environ['MASTER_PORT'])
   init_process_group(backend='gloo', rank=rank, world_size=world_size)
@@ -153,7 +153,8 @@ if __name__ == '__main__':
   world_size = min(os.cpu_count(), 2)
   print(os.cpu_count())
   print("World Size:", world_size)
-  mp.spawn(main, args=(world_size,), nprocs=world_size, join=True)
+  # mp.spawn(main, args=(world_size,), nprocs=world_size, join=True)
+  mp.spawn(main, args=(world_size,), nprocs=world_size)
 
 
 # In[ ]:
