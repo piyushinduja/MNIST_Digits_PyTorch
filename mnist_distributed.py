@@ -95,13 +95,13 @@ class MultiClassClassifier(nn.Module):
 # In[8]:
 
 
-def train_model(model, train_dataloader, optimizer, loss_fn, rank):
+def train_model(model, train_dataloader, optimizer, loss_fn, rank, device):
   for epoch in range(5):
     train_dataloader.sampler.set_epoch(epoch)
     for x, y in train_dataloader:
-      x = x.view(x.shape[0], -1).to(rank)
+      x = x.view(x.shape[0], -1).to(device)
       y_pred = model(x)
-      loss = loss_fn(y_pred, y.to(rank))
+      loss = loss_fn(y_pred, y.to(device))
       loss.backward()
       optimizer.step()
       optimizer.zero_grad()
@@ -112,14 +112,14 @@ def train_model(model, train_dataloader, optimizer, loss_fn, rank):
 # In[9]:
 
 
-def evaluate(model, test_dataloader, rank):
+def evaluate(model, test_dataloader, rank, device):
   with torch.no_grad():
     correct = 0
     for x, y in test_dataloader:
-      x = x.view(-1, 784).to(rank)
+      x = x.view(-1, 784).to(device)
       y_pred = model(x)
       _, predicted = torch.max(y_pred.data, 1)
-      correct += (predicted == y.to(rank)).sum().item()
+      correct += (predicted == y.to(device)).sum().item()
     print('Test Data Accuracy:', correct/len(test_dataloader))
 
 
@@ -131,13 +131,14 @@ def main(rank, world_size):
   ddp_setup(rank, world_size)
   print("DDP Setup complete")
 
+  device = f'cpu:{rank}'
   train_dataloader, test_dataloader = prepare_data(world_size=world_size, rank=rank, batch_size=32, pin_memory=False, num_workers=0)
-  model = MultiClassClassifier().to(rank)
+  model = MultiClassClassifier().to(device)
   model = DDP(model)
   optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
   loss_fn = nn.CrossEntropyLoss()
-  model = train_model(model, train_dataloader, optimizer, loss_fn, rank)
-  evaluate(model, test_dataloader, rank)
+  model = train_model(model, train_dataloader, optimizer, loss_fn, rank, device)
+  evaluate(model, test_dataloader, rank, device)
 
   destroy_process_group()
 
