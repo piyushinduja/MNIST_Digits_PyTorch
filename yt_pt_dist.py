@@ -44,8 +44,8 @@ def ddp_setup(g_rank, world_size):
   print("Inside ddp setup")
   # ip_address = get_ip_address()
   # available_port = find_free_port()
-  os.environ['MASTER_ADDR'] = 'localhost'
-  os.environ['MASTER_PORT'] = '8888'
+  os.environ['MASTER_ADDR'] = '10.10.1.1'
+  os.environ['MASTER_PORT'] = '29500'
   # print("IP Addr:", os.environ['MASTER_ADDR'], " Port:", os.environ['MASTER_PORT'])
   init_process_group(backend='gloo', rank=g_rank, world_size=world_size)
 
@@ -102,7 +102,7 @@ class MultiClassClassifier(nn.Module):
 
 
 def train_model(model, train_dataloader, optimizer, loss_fn, device):
-  for epoch in range(5):
+  for epoch in range(3):
     train_dataloader.sampler.set_epoch(epoch)
     for x, y in train_dataloader:
       x = x.view(x.shape[0], -1).to(device)
@@ -132,9 +132,9 @@ def evaluate(model, test_dataloader, device):
 # In[21]:
 
 
-def main(l_rank, world_size):
+def main(l_rank, world_size, node_rank, n_cores):
 
-  g_rank = world_size + l_rank
+  g_rank = local_rank + (node_rank * num_cores)
   
   print("Inside main")
   ddp_setup(g_rank, world_size)
@@ -143,7 +143,7 @@ def main(l_rank, world_size):
   device = 'cpu' # f'cpu:{rank}'
   train_dataloader, test_dataloader = prepare_data(world_size=world_size, g_rank=g_rank, batch_size=32, pin_memory=False, num_workers=0)
   model = MultiClassClassifier().to(device)
-  model = DDP(model, device_ids=[l_rank])
+  model = DDP(model, device_ids=None)
   optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
   loss_fn = nn.CrossEntropyLoss()
   model = train_model(model, train_dataloader, optimizer, loss_fn, device)
@@ -162,13 +162,14 @@ def main(l_rank, world_size):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('--node_id', type=int, required=True)
+  # parser.add_argument('--node_id', type=int, required=True)
   parser.add_argument('--n_nodes', type=int, default=2)
   parser.add_argument('--n_cores', type=int, default=2)
+  parser.add_argument('--node_rank', type=int, required=True)
+  parser.add_argument('--local-rank', --'local_rank', type=int, default=0)
+  args = parser.parse_args()
   world_size = args.n_nodes * args.n_cores
-  print("World Size:", world_size)
-  # mp.spawn(main, args=(world_size,), nprocs=world_size, join=True)
-  mp.spawn(main, args=(world_size,), nprocs=world_size)
+  mp.spawn(main, args=(world_size, args.node_rank, args.n_cores), nprocs=args.n_cores)
 
 
 # In[ ]:
