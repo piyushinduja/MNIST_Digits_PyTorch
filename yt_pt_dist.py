@@ -134,7 +134,7 @@ def evaluate(model, test_dataloader, device):
 
 def main(l_rank, world_size, node_rank, n_cores):
 
-  g_rank = local_rank + (node_rank * num_cores)
+  g_rank = l_rank + (node_rank * num_cores)
   
   print("Inside main")
   ddp_setup(g_rank, world_size)
@@ -166,7 +166,7 @@ if __name__ == '__main__':
   parser.add_argument('--n_nodes', type=int, default=2)
   parser.add_argument('--n_cores', type=int, default=2)
   parser.add_argument('--node_rank', type=int, required=True)
-  parser.add_argument('--local-rank', --'local_rank', type=int, default=0)
+  parser.add_argument('--local-rank', '--local_rank', type=int, default=0)
   args = parser.parse_args()
   world_size = args.n_nodes * args.n_cores
   mp.spawn(main, args=(world_size, args.node_rank, args.n_cores), nprocs=args.n_cores)
