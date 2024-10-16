@@ -53,7 +53,7 @@ def ddp_setup(g_rank, world_size):
 # In[5]:
 
 
-def prepare_data(world_size, g_rank, batch_size=32, pin_memory=False, num_workers=0):
+def prepare_data(world_size, g_rank, l_rank, batch_size=32):
 
   download = True if l_rank == 0 else False
   transform = transforms.Compose([transforms.ToTensor()])
@@ -134,14 +134,14 @@ def evaluate(model, test_dataloader, device):
 
 def main(l_rank, world_size, node_rank, n_cores):
 
-  g_rank = l_rank + (node_rank * num_cores)
+  g_rank = l_rank + (node_rank * n_cores)
   
   print("Inside main")
   ddp_setup(g_rank, world_size)
   print("DDP Setup complete")
 
   device = 'cpu' # f'cpu:{rank}'
-  train_dataloader, test_dataloader = prepare_data(world_size=world_size, g_rank=g_rank, batch_size=32, pin_memory=False, num_workers=0)
+  train_dataloader, test_dataloader = prepare_data(world_size=world_size, g_rank=g_rank, l_rank=l_rank, batch_size=32)
   model = MultiClassClassifier().to(device)
   model = DDP(model, device_ids=None)
   optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
