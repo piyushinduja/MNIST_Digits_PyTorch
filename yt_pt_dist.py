@@ -147,7 +147,9 @@ def main(l_rank, world_size, node_rank, n_cores):
   optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
   loss_fn = nn.CrossEntropyLoss()
   model = train_model(model, train_dataloader, optimizer, loss_fn, device)
+  
   barrier()
+    
   evaluate(model, test_dataloader, device)
 
   # destroy_process_group()
