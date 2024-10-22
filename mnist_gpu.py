@@ -15,9 +15,10 @@ start_time = time.time()
 import torch.multiprocessing as mp
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import init_process_group, destroy_process_group, barrier
 import os
 import socket
+import argparse
 
 
 # In[4]:
@@ -39,37 +40,40 @@ def find_free_port():
 # In[12]:
 
 
-def ddp_setup(rank, world_size):
+def ddp_setup(g_rank, world_size):
   print("Inside ddp setup")
-  ip_address = get_ip_address()
-  available_port = find_free_port()
-  os.environ['MASTER_ADDR'] = ip_address
-  os.environ['MASTER_PORT'] = '8888'
-  print("IP Addr:", os.environ['MASTER_ADDR'], " Port:", os.environ['MASTER_PORT'])
-  init_process_group(backend='gloo', rank=rank, world_size=world_size)
+  # ip_address = get_ip_address()
+  # available_port = find_free_port()
+  os.environ['MASTER_ADDR'] = '10.10.1.1'
+  os.environ['MASTER_PORT'] = '29500'
+  # print("IP Addr:", os.environ['MASTER_ADDR'], " Port:", os.environ['MASTER_PORT'])
+  init_process_group(backend='nccl', rank=g_rank, world_size=world_size)
 
 
 # In[5]:
 
 
-def prepare_data(world_size, rank, batch_size=32, pin_memory=False, num_workers=0):
-  transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-    
-  train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-  train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False)
-  train_dataloader = DataLoader(train_dataset, batch_size=batch_size, pin_memory=pin_memory, num_workers=num_workers, drop_last=False, shuffle=False, sampler=train_sampler)
+def prepare_data(world_size, g_rank, l_rank, batch_size=32):
 
-  test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
-  test_sampler = DistributedSampler(test_dataset, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False)
-  test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, sampler=test_sampler)
+  download = True if l_rank == 0 else False
+  transform = transforms.Compose([transforms.ToTensor()])
+  if l_rank == 0:
+      train_dataset = datasets.MNIST(root='./data', train=True, download=download, transform=transform)
+      test_dataset = datasets.MNIST(root='./data', train=False, download=download, transform=transform)
+  barrier()
+  if l_rank != 0:
+      train_dataset = datasets.MNIST(root='./data', train=True, download=download, transform=transform)
+      test_dataset = datasets.MNIST(root='./data', train=False, download=download, transform=transform)
+      
+  train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=g_rank)
+  train_dataloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=False, sampler=train_sampler)
+
+
+  test_sampler = DistributedSampler(test_dataset, num_replicas=world_size, rank=g_rank)
+  test_dataloader = DataLoader(test_dataset, batch_size=32, drop_last=True, sampler=test_sampler)
   return train_dataloader, test_dataloader
 
 
-# # **Standard PyTorch Pipline**
-# 1. Design a model with different layers
-# 2. Construct Loss and Optimizer
-# 3. Training Loop:
-# Forward pass - Prediction and Loss Calculation, Backward Pass - Calculate Gradients, Update Weights
 
 # In[7]:
 
@@ -85,7 +89,9 @@ class MultiClassClassifier(nn.Module):
 
   def forward(self, x):
     l1 = self.lin1(x)
+    l1 = self.relu(l1)
     l2 = self.lin2(l1)
+    l2 = self.relu(l2)
     l3 = self.lin3(l2)
     l3 = self.relu(l3)
     l4 = self.lin4(l3)
@@ -95,8 +101,8 @@ class MultiClassClassifier(nn.Module):
 # In[8]:
 
 
-def train_model(model, train_dataloader, optimizer, loss_fn, rank, device):
-  for epoch in range(5):
+def train_model(model, train_dataloader, optimizer, loss_fn, device):
+  for epoch in range(3):
     train_dataloader.sampler.set_epoch(epoch)
     for x, y in train_dataloader:
       x = x.view(x.shape[0], -1).to(device)
@@ -112,7 +118,7 @@ def train_model(model, train_dataloader, optimizer, loss_fn, rank, device):
 # In[9]:
 
 
-def evaluate(model, test_dataloader, rank, device):
+def evaluate(model, test_dataloader, device):
   with torch.no_grad():
     correct = 0
     for x, y in test_dataloader:
@@ -126,19 +132,25 @@ def evaluate(model, test_dataloader, rank, device):
 # In[21]:
 
 
-def main(rank, world_size):
+def main(l_rank, world_size, node_rank, n_cores):
+
+  g_rank = l_rank + (node_rank * n_cores)
+  
   print("Inside main")
-  ddp_setup(rank, world_size)
+  ddp_setup(g_rank, world_size)
   print("DDP Setup complete")
 
-  device = f'cpu:{rank}'
-  train_dataloader, test_dataloader = prepare_data(world_size=world_size, rank=rank, batch_size=32, pin_memory=False, num_workers=0)
+  device = f'cuda:{l_rank}'
+  train_dataloader, test_dataloader = prepare_data(world_size=world_size, g_rank=g_rank, l_rank=l_rank, batch_size=32)
   model = MultiClassClassifier().to(device)
-  model = DDP(model)
+  model = DDP(model, device_ids=[l_rank])
   optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
   loss_fn = nn.CrossEntropyLoss()
-  model = train_model(model, train_dataloader, optimizer, loss_fn, rank, device)
-  evaluate(model, test_dataloader, rank, device)
+  model = train_model(model, train_dataloader, optimizer, loss_fn, device)
+  
+  barrier()
+    
+  evaluate(model, test_dataloader, device)
 
   destroy_process_group()
 
@@ -151,11 +163,15 @@ def main(rank, world_size):
 
 
 if __name__ == '__main__':
-  world_size = min(os.cpu_count(), 2)
-  print(os.cpu_count())
-  print("World Size:", world_size)
-  # mp.spawn(main, args=(world_size,), nprocs=world_size, join=True)
-  mp.spawn(main, args=(world_size,), nprocs=world_size)
+  parser = argparse.ArgumentParser()
+  # parser.add_argument('--node_id', type=int, required=True)
+  parser.add_argument('--n_nodes', type=int, default=2)
+  parser.add_argument('--n_cores', type=int, default=2)
+  parser.add_argument('--node_rank', type=int, required=True)
+  parser.add_argument('--local-rank', '--local_rank', type=int, default=0)
+  args = parser.parse_args()
+  world_size = args.n_nodes * args.n_cores
+  mp.spawn(main, args=(world_size, args.node_rank, args.n_cores), nprocs=args.n_cores)
 
 
 # In[ ]:
