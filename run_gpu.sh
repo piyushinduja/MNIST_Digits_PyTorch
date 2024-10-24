@@ -15,3 +15,6 @@ sudo dpkg -i cuda-repo-ubuntu2204-12-6-local_12.6.2-560.35.03-1_amd64.deb
 sudo cp /var/cuda-repo-ubuntu2204-12-6-local/cuda-*-keyring.gpg /usr/share/keyrings/
 sudo apt-get update
 sudo apt-get -y install cuda-toolkit-12-6
+
+sudo apt-get install -y nvidia-open
+sudo apt-get install -y cuda-drivers
