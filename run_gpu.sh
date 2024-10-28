@@ -18,3 +18,8 @@ sudo apt-get -y install cuda-toolkit-12-6
 
 sudo apt-get install -y nvidia-open
 sudo apt-get install -y cuda-drivers
+
+sudo apt install nvidia-driver-535
+sudo apt install nvidia-driver-535-server
+
+sudo reboot
